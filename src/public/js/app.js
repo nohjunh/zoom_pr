@@ -1,21 +1,40 @@
-const socket = new WebSocket(`ws://${window.location.host}`); //Websocket이 프론트와 백엔드를 브라우저에서 연결해주는 것을 지원함. // 이렇게 써줌으로써 프론트와 백엔드가 연결됨
-//const socket= new webSocket("ws://localhost:3000")와 동일 //ws는 프로토콜, localhost:3000은 url
-// window.location하면 내가 어디에 있는지 알려줌 -> .host를 통해 localhost:3000 이 나오게 할 수 있다.
-// new WebSocket의 반환값을 socket변수에 저장하고 이 socket변수를 통해 백엔드와 실시간 통신을 할 수 있게 된다.
+const messageList = document.querySelector("ul");
+const nickForm = document.querySelector("#nick");
+const messageForm = document.querySelector("#message");
+const socket = new WebSocket(`ws://${window.location.host}`);
+
+function makeMessage(type, payload) { // type은 메세지의 종류로 구분, payload는 메세지에 담겨있는 정보
+  const msg = { type, payload };
+  return JSON.stringify(msg);
+}
 
 socket.addEventListener("open", ()=>{ // callback function을 익명함수로 해서 프론트에서 소켓이 열렸다는 event를 받으면 다음 log를 띄움.
     console.log("connectd to server"); 
 });
 
-socket.addEventListener("message", (message) => { // message event를 받으면 message값을 인자로 넣어서 해당 값 출력
-    console.log("New message: ", message.data, "from the Server"); // message의 data 값 출력
+socket.addEventListener("message", (message) => {
+  const li = document.createElement("li");
+  li.innerText = message.data;
+  messageList.append(li);
 });
 
-socket.addEventListener("close", ()=>{ // 서버와 연결 끊김.
-    console.log("disconnected from server");
+socket.addEventListener("close", () => {
+  console.log("Disconnected from Server");
 });
 
-// 10초뒤에 브라우저에서 백엔드로 data전송
-setTimeout( ()=> { //setTimeout 함수를 통해 첫번째 인자로 들어오는 함수를 두번째 인자값인 10초뒤에 수행.
-    socket.send("hello from the browser!");
-}, 10000); 
+function handleSubmit(event) { // chat을 백엔드로 보내는 부분
+  event.preventDefault();
+  const input = messageForm.querySelector("input");
+  socket.send(makeMessage("new_message", input.value));
+  input.value = "";
+}
+
+function handleNickSubmit(event) { // nickname을 백엔드로 보내는 부분
+  event.preventDefault();
+  const input = nickForm.querySelector("input");
+  socket.send(makeMessage("nickname", input.value));
+  input.value = "";
+}
+
+messageForm.addEventListener("submit", handleSubmit);
+nickForm.addEventListener("submit", handleNickSubmit);
