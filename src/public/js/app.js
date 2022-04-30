@@ -26,6 +26,9 @@ function handleSubmit(event) { // chat을 백엔드로 보내는 부분
   event.preventDefault();
   const input = messageForm.querySelector("input");
   socket.send(makeMessage("new_message", input.value));
+  const li = document.createElement("li");
+  li.innerText = `You: ${input.value}`;
+  messageList.append(li);
   input.value = "";
 }
 
