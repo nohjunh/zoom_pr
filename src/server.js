@@ -1,4 +1,5 @@
 import http from "http";
+// socket.io에서 SocKetIO로 import
 import SocketIO from "socket.io";
 import express from "express";
 
@@ -11,12 +12,17 @@ app.get("/", (_, res) => res.render("home"));
 app.get("/*", (_, res) => res.redirect("/"));
 
 const httpServer = http.createServer(app);
+
+//socket io 코드와 websocket io 코드 비교
+
+// Socket io 코드
 const wsServer = SocketIO(httpServer);
 
 wsServer.on("connection", (socket) => {
   console.log(socket);
 });
 
+// Websocket 코드
 /*
 const wss = new WebSocket.Server({ server });
 const sockets = [];
