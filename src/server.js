@@ -13,17 +13,20 @@ app.get("/*", (_, res) => res.redirect("/"));
 const httpServer = http.createServer(app);
 const wsServer = SocketIO(httpServer);
 
-wsServer.on("connection", (socket) => { // connection event 결과로 반환된 front와 연결된
-                                        // socket을 인자로 
-  socket.on("enter_room", (msg, done) => { // socket.on의 인자 event로 원하는 event를 적어주고
-                                           // 두 번째 인자인 msg에 front로부터 JSON 객체({ payload: input.value }를 받고,
-                                           // 세 번째 인자에는 front가 보낸 function이 done으로  들어감.
-    console.log(msg); // 서버는 frone로부터 받은 JSON을 출력하고
-    // 서버는 10초 후에 front-end에서 function을 실행시킬 것이다. -> 즉, 서버 back-end에서 해당 function을 호출하지만
-    // 해당 function은 front-end에서 실행된다. 
-    setTimeout(() => { // 10초후에 front에서 보낸 done() function 호출하면 frone-end에서 해당 function이 실행될 것이다.
-      done();
-    }, 10000);
+wsServer.on("connection", (socket) => {
+  socket.on("enter_room", (roomName, done) => {
+    console.log(roomName);
+    setTimeout(() => {
+      // 중요한거는 
+      // done()함수를 server.js 즉, 백엔드에서 실행하는게 아니라
+      // done function이 호출되면 front-end에서 done에 인자로
+      // 전달한 function이 실행될 것이다. why? front에서 보낸 function의 내용이
+      // 신뢰하지 못하는 code context라면 문제 발생할 수 있음.
+      // 따라서, back-end에서는 실행버튼만 눌러주는거라고 생각하면 된다.
+      // 추가로, back-end에서 이 function에 argument를 넣어줄 수 있따.
+
+      done("hello from the backend"); 
+    }, 15000); // 15초 후에 done()을 call 할 것이다.
   });
 });
 
