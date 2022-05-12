@@ -13,20 +13,22 @@ app.get("/*", (_, res) => res.redirect("/"));
 const httpServer = http.createServer(app);
 const wsServer = SocketIO(httpServer);
 
-wsServer.on("connection", (socket) => {
-  socket.on("enter_room", (roomName, done) => {
-    console.log(roomName);
-    setTimeout(() => {
-      // 중요한거는 
-      // done()함수를 server.js 즉, 백엔드에서 실행하는게 아니라
-      // done function이 호출되면 front-end에서 done에 인자로
-      // 전달한 function이 실행될 것이다. why? front에서 보낸 function의 내용이
-      // 신뢰하지 못하는 code context라면 문제 발생할 수 있음.
-      // 따라서, back-end에서는 실행버튼만 눌러주는거라고 생각하면 된다.
-      // 추가로, back-end에서 이 function에 argument를 넣어줄 수 있따.
+// connection event 결과로 반환된 socket에는 socket.id 값이 부여되어 있고
+// 이 socket이 room에 배정되면 console.log(socket.rooms)을 했을 때 
+// socket.id와 socket이 배정된 room의 이름이 set객체로 묶여 출력될 것이다.
+// socekt.id의 값은 user와 server 사이의 private한 room이라고 생각하면 된다.
+// 즉, user와 기본적으로 들어가 있는 방의 이름.
+/////////////////////////////////////////////////////////////
 
-      done("hello from the backend"); 
-    }, 15000); // 15초 후에 done()을 call 할 것이다.
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => { // onAny함수는 socket에 온 모든  event를 argument로 받음.
+    console.log(`Socket Event: ${event}`); 
+  });
+  socket.on("enter_room", (roomName, done) => {
+    // socketIO는 기본적으로 Room 기능을 제공해주는데,
+    // join함수를 통해 인자로 room의 이름을 적어주면 room에 참가하는 기능을 제공. 
+    socket.join(roomName);
+    done();
   });
 });
 
