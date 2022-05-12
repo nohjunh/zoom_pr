@@ -1,7 +1,15 @@
 import http from "http";
 import SocketIO from "socket.io";
 import express from "express";
-
+/*
+socket.to("others").emit("an event", { some: "data"});
+to함수의 인자로는 room의 이름이 들어가고
+emit함수의 인자로는 발생시킬 event가 들어간다.
+혹은
+socket.to("room1").to("room2").emit("hello");
+다수의 방에 event를 발생시킬 수도 있다.
+to함수 안에 다른 소켓의id 값을 넣어주면 private하게 event를 보낼 수도 있다.
+*/
 const app = express();
 
 app.set("view engine", "pug");
@@ -29,6 +37,8 @@ wsServer.on("connection", (socket) => {
     // join함수를 통해 인자로 room의 이름을 적어주면 room에 참가하는 기능을 제공. 
     socket.join(roomName);
     done();
+    socket.to(roomName).emit("welcome"); // "welcome" event를 roomName에 있는 모든 사람들에게 emit   
+                                        // front가 welcome event에 반응할 것이다.
   });
 });
 
