@@ -1,15 +1,7 @@
 import http from "http";
 import SocketIO from "socket.io";
 import express from "express";
-/*
-socket.to("others").emit("an event", { some: "data"});
-to함수의 인자로는 room의 이름이 들어가고
-emit함수의 인자로는 발생시킬 event가 들어간다.
-혹은
-socket.to("room1").to("room2").emit("hello");
-다수의 방에 event를 발생시킬 수도 있다.
-to함수 안에 다른 소켓의id 값을 넣어주면 private하게 event를 보낼 수도 있다.
-*/
+
 const app = express();
 
 app.set("view engine", "pug");
@@ -21,24 +13,29 @@ app.get("/*", (_, res) => res.redirect("/"));
 const httpServer = http.createServer(app);
 const wsServer = SocketIO(httpServer);
 
-// connection event 결과로 반환된 socket에는 socket.id 값이 부여되어 있고
-// 이 socket이 room에 배정되면 console.log(socket.rooms)을 했을 때 
-// socket.id와 socket이 배정된 room의 이름이 set객체로 묶여 출력될 것이다.
-// socekt.id의 값은 user와 server 사이의 private한 room이라고 생각하면 된다.
-// 즉, user와 기본적으로 들어가 있는 방의 이름.
-/////////////////////////////////////////////////////////////
-
 wsServer.on("connection", (socket) => {
-  socket.onAny((event) => { // onAny함수는 socket에 온 모든  event를 argument로 받음.
-    console.log(`Socket Event: ${event}`); 
+  socket.onAny((event) => {
+    console.log(`Socket Event: ${event}`);
   });
   socket.on("enter_room", (roomName, done) => {
-    // socketIO는 기본적으로 Room 기능을 제공해주는데,
-    // join함수를 통해 인자로 room의 이름을 적어주면 room에 참가하는 기능을 제공. 
     socket.join(roomName);
     done();
-    socket.to(roomName).emit("welcome"); // "welcome" event를 roomName에 있는 모든 사람들에게 emit   
-                                        // front가 welcome event에 반응할 것이다.
+    socket.to(roomName).emit("welcome");
+  });
+  // disconnecting은 접속을 중단하지만, 아직 방을 완전히 나가지는 않은 상태
+  // disconnecting을 통해 클라이언트가 서버와 연결이 끊어지기 전에 마지막으로 메세지를 보낼 수 있게 할 수 있다.
+  socket.on("disconnecting", () => {
+    // socket.rooms의 반환값은 set이기에 iterable반복이 가능.
+    // foreach로 돌면서 해당 socket이 접속해있는 모든 방에 차례로 접근해
+    // room에 있는 모든 클라이언트들에게 bye event 발생.
+    socket.rooms.forEach((room) => socket.to(room).emit("bye"));
+  });
+  // 백엔드로 new_message event가 들어오면 emit함수의 인자들이 차례로 msg, room,done에 할당되고
+  // done()함수를 실행하라고 지시하면 front에서 지정한 emit함수의 세번 째 인자인 익명함수가 front에서 실행됨. 
+  socket.on("new_message", (msg, room, done) => {
+    socket.to(room).emit("new_message", msg); // 인자로 들어온 room에 있는 모든 클라이언트에게
+                                              // new_message event 발생시킴.
+    done(); // 백엔드에서 done호출시 front에서 실행함.
   });
 });
 
