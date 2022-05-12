@@ -9,6 +9,13 @@ room.hidden = true;
 
 let roomName; 
 
+function addMessasge(message){
+  const ul= room.querySelector("ul");
+  const li = document.createElement("li"); // li태그를 추가해줌.
+  li.innerText = message;
+  ul.appendChild(li);
+}
+
 function showRoom() {
   welcome.hidden = true; // welcome Element를 숨기고
   room.hidden = false; // room Element를 front에 띄움.
@@ -28,3 +35,8 @@ function handleRoomSubmit(event) {
 }
 
 form.addEventListener("submit", handleRoomSubmit);
+
+// SocketIO를 사용하므로 addEventListenter 대신 on을 써도 됨.
+socket.on("welcome", ()=>{
+  addMessasge("someone joined!");
+})
