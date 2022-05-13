@@ -72,3 +72,20 @@ socket.on("bye", (left) => {
 });
 
 socket.on("new_message", addMessage);
+//socket.on("room_change", console.log) // //socket.on("room_change", (msg)=> console.log(msg));와 동일
+
+
+socket.on("room_change", (rooms)=>{
+  const roomList = welcome.querySelector("ul"); //welcome의 ul를 받아서 roomList로 만듬
+  roomList.innerHTML = ""; // roomList의 모든 것을 비워줌
+  
+  if(rooms.length===0){ // rooms가 없는 상태로 오면, 내 어플리케이션에 room이 하나도 없을 때
+    roomList.innerHTML = ""; // roomList의 모든 것을 비워줌
+    return;
+  }
+  rooms.forEach(room => { // 각각의 room에
+    const li = document.createElement("li"); // li element를 만들어주고
+    li.innerText = room; // innerText로 li에 room을 넣어준다.
+    roomList.append(li);// 새로운 li를 roomList에 append
+  });
+});

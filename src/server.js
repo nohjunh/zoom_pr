@@ -13,23 +13,13 @@ app.get("/*", (_, res) => res.redirect("/"));
 const httpServer = http.createServer(app);
 const wsServer = SocketIO(httpServer);
 
-
-// publicRoom을 주는 function
-function publicRooms() { // wsServer.sockets.adapter로부터 sids와 rooms를 가져와서 publicRoom을 찾아 publicRooms배열에 넣어줌.
-  // wsServer안에 있는 sids와 rooms를 가져오는 코드
-  // 아래 코드는
-  // const sids= wsServer.sockets.adapter.sids; 
-  // const rooms= wsServer.sockets.adapter.rooms;
-  // 와 동일한 코드
-
-  const{
-    sockets: { // 2. sockets안에
-      adapter: { sids, rooms }, // 3. adapter의 sids와 rooms data를 가져옴
+function publicRooms() {
+  const {
+    sockets: {
+      adapter: { sids, rooms },
     },
-  } = wsServer; // 1. wsServer안에 있는
-
-  /////////////////
-  const publicRooms = []; // 아직 아무것도 없는 상태
+  } = wsServer;
+  const publicRooms = [];
   rooms.forEach((_, key) => {
     if (sids.get(key) === undefined) {
       publicRooms.push(key);
@@ -46,12 +36,24 @@ wsServer.on("connection", (socket) => {
   socket.on("enter_room", (roomName, done) => {
     socket.join(roomName);
     done();
+    // socket.to(roomName)은 해당Room에 속한 소켓에만 emit event를 발생시킴
     socket.to(roomName).emit("welcome", socket.nickname);
+    // wsServer.sockets.emit()
+    // room_change라는 event를 wsServer.socket에 등록된 모든 소켓에게 발생 
+    // event의 payload는 publicRooms의 함수반환 결과(서버안에 모든 방이 저장된 배열)
+    wsServer.sockets.emit("room_change", publicRooms());
   });
+
+  // disconnecting event는 socket이 방을 떠나기 바로 직전에 발생
   socket.on("disconnecting", () => {
     socket.rooms.forEach((room) =>
       socket.to(room).emit("bye", socket.nickname)
     );
+  });
+  // disconnect event는 socket이 방을 떠난 후
+  socket.on("disconnect", () => {
+    //wsServer.socket.emit()은 message를 wsServer에 속한 모두에게 보내는 기능.
+    wsServer.sockets.emit("room_change", publicRooms());
   });
   socket.on("new_message", (msg, room, done) => {
     socket.to(room).emit("new_message", `${socket.nickname}: ${msg}`);
