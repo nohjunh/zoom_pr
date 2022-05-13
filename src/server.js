@@ -13,13 +13,32 @@ app.get("/*", (_, res) => res.redirect("/"));
 const httpServer = http.createServer(app);
 const wsServer = SocketIO(httpServer);
 
+
+// publicRoom을 주는 function
+function publicRooms() { // wsServer.sockets.adapter로부터 sids와 rooms를 가져와서 publicRoom을 찾아 publicRooms배열에 넣어줌.
+  // wsServer안에 있는 sids와 rooms를 가져오는 코드
+  // 아래 코드는
+  // const sids= wsServer.sockets.adapter.sids; 
+  // const rooms= wsServer.sockets.adapter.rooms;
+  // 와 동일한 코드
+
+  const{
+    sockets: { // 2. sockets안에
+      adapter: { sids, rooms }, // 3. adapter의 sids와 rooms data를 가져옴
+    },
+  } = wsServer; // 1. wsServer안에 있는
+
+  /////////////////
+  const publicRooms = []; // 아직 아무것도 없는 상태
+  rooms.forEach((_, key) => {
+    if (sids.get(key) === undefined) {
+      publicRooms.push(key);
+    }
+  });
+  return publicRooms;
+}
+
 wsServer.on("connection", (socket) => {
-  /*
-  // 만약 모든 socket을 특정 방에 들어가게 하고 싶다면,
-  wsServer.socketsJoin("announcemnt");// socketIO에 연결된 모든 socket을 announcemnet방에 들어가게 함.
-  */
- 
-  //socket이 연결됐을때 초기값으로 닉네임에 annoymous값을 넣어줌.
   socket["nickname"] = "Anon";
   socket.onAny((event) => {
     console.log(`Socket Event: ${event}`);
@@ -35,7 +54,6 @@ wsServer.on("connection", (socket) => {
     );
   });
   socket.on("new_message", (msg, room, done) => {
-    // 새로운 메세지 event가 발생하면 소켓닉네임:메세지 내용을 room에 있는 클라이언트에게 모두 전송
     socket.to(room).emit("new_message", `${socket.nickname}: ${msg}`);
     done();
   });
