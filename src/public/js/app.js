@@ -17,17 +17,21 @@ function addMessage(message) {
 
 function handleMessageSubmit(event) {
   event.preventDefault();
-  // document에서 찾은 첫번째 room element 위치에서
-  // input element의 위치를 input 상수에 저장.
-  const input = room.querySelector("input");
+  // #msg form 안에 있는 input을 찾아준다.
+  const input = room.querySelector("#msg input");
   const value = input.value;
-  // new_message event를  백엔드에 발생시킴.
-  // 첫번쨰 argument인 input.value와 함께 백엔드로 보냄
-  // 마지막 argumnet에는 백엔드에서 실행하라고 지시할 수 있는 function을 넣어줌
   socket.emit("new_message", input.value, roomName, () => {
-    addMessage(`You: ${value}`); // 현재 내 front에 메세지를 띄어줌.
+    addMessage(`You: ${value}`);
   });
   input.value = "";
+}
+
+function handleNicknameSubmit(event){
+  event.preventDefault();
+  // #name form 안에 있는 input을 찾아준다.
+  const input = room.querySelector("#name input");
+  const value = input.value;
+  socket.emit("nickname", input.value);
 }
 
 function showRoom() {
@@ -35,8 +39,18 @@ function showRoom() {
   room.hidden = false;
   const h3 = room.querySelector("h3");
   h3.innerText = `Room ${roomName}`;
-  const form = room.querySelector("form");
-  form.addEventListener("submit", handleMessageSubmit);
+  // handleMessageSubmit에서 #msg form안에 있는 input을 찾아준다.
+  const msgForm = room.querySelector("#msg");
+  msgForm.addEventListener("submit", handleMessageSubmit);
+  // handleNicknameSubmit에서 #name form 안에 있는 input을 찾아준다. 
+  const nameForm = room.querySelector("#name");
+  nameForm.addEventListener("submit", handleNicknameSubmit);
+}
+
+function handleNicknameSubmit(event){
+  event.preventDefault();
+  const input= room.querySelector("input");
+  const value = input.value;
 }
 
 function handleRoomSubmit(event) {
@@ -49,13 +63,12 @@ function handleRoomSubmit(event) {
 
 form.addEventListener("submit", handleRoomSubmit);
 
-socket.on("welcome", () => {
-  addMessage("someone joined!");
+socket.on("welcome", (user) => {
+  addMessage(`${user} arrived!`);
 });
 
-socket.on("bye", () => { // bye event가 발생하면 누군가가 나갔다는 의미이므로 addMessage에 인자로 넣어서 front에 출력시킴.
-  addMessage("someone left ㅠㅠ");
+socket.on("bye", (left) => {
+  addMessage(`${left} left ㅠㅠ`);
 });
 
-socket.on("new_message", addMessage); // 이 구문과 밑의 구문은 완전히 동일
-//socket.on("new_messsage", (msg) => {addMessage(msg)});
+socket.on("new_message", addMessage);
