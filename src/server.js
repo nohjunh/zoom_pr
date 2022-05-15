@@ -13,29 +13,25 @@ app.get("/*", (_, res) => res.redirect("/"));
 const httpServer = http.createServer(app);
 const wsServer = SocketIO(httpServer);
 
-
-// publicRoom을 주는 function
-function publicRooms() { // wsServer.sockets.adapter로부터 sids와 rooms를 가져와서 publicRoom을 찾아 publicRooms배열에 넣어줌.
-  // wsServer안에 있는 sids와 rooms를 가져오는 코드
-  // 아래 코드는
-  // const sids= wsServer.sockets.adapter.sids; 
-  // const rooms= wsServer.sockets.adapter.rooms;
-  // 와 동일한 코드
-
-  const{
-    sockets: { // 2. sockets안에
-      adapter: { sids, rooms }, // 3. adapter의 sids와 rooms data를 가져옴
+function publicRooms() {
+  const {
+    sockets: {
+      adapter: { sids, rooms },
     },
-  } = wsServer; // 1. wsServer안에 있는
-
-  /////////////////
-  const publicRooms = []; // 아직 아무것도 없는 상태
+  } = wsServer;
+  const publicRooms = [];
   rooms.forEach((_, key) => {
     if (sids.get(key) === undefined) {
       publicRooms.push(key);
     }
   });
   return publicRooms;
+}
+
+// 방의 갯수를 세는 function
+function countRoom(roomName) {
+  // sockets.adapter.rooms.에서 get하는데 해당 Room의 size 즉, 연결된 클라이언트가 몇명인지를 확인
+  return wsServer.sockets.adapter.rooms.get(roomName)?.size;
 }
 
 wsServer.on("connection", (socket) => {
@@ -46,15 +42,23 @@ wsServer.on("connection", (socket) => {
   socket.on("enter_room", (roomName, done) => {
     socket.join(roomName);
     done();
-    socket.to(roomName).emit("welcome", socket.nickname);
+    // Welcome event를 보낼때 방의 이름의 countRoom의 결과도 같이 보냄.
+    socket.to(roomName).emit("welcome", socket.nickname, countRoom(roomName));
+    wsServer.sockets.emit("room_change", publicRooms());
   });
   socket.on("disconnecting", () => {
+    // 아직 완전히 퇴장한게 아니므로 인자로 room을 쓸 수 있음.
+    // 퇴장하는 방의 이름의 CountRoom 함수의 결과에 -1 을 해서 bye event로 보냄.
     socket.rooms.forEach((room) =>
-      socket.to(room).emit("bye", socket.nickname)
+      socket.to(room).emit("bye", socket.nickname, countRoom(room) - 1)
     );
+  });
+  socket.on("disconnect", () => {
+    wsServer.sockets.emit("room_change", publicRooms());
   });
   socket.on("new_message", (msg, room, done) => {
     socket.to(room).emit("new_message", `${socket.nickname}: ${msg}`);
+    // done() 콜백함수를 통해 백엔드에서 코드를 시작할 수 있게 해 front에서 해당 함수를 실행함.
     done();
   });
   socket.on("nickname", (nickname) => (socket["nickname"] = nickname));

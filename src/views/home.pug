@@ -1,4 +1,3 @@
-
 doctype html
 html(lang="en")
     head
@@ -15,13 +14,12 @@ html(lang="en")
                 form
                     input(placeholder="room name", required, type="text")
                     button Enter Room
+                h4 Open Rooms:
+                ul
             div#room
                 h3
                 ul
-                form#name
-                    input(placeholder="nickname", required, type="text")
-                    button Send
-            form#msg
+                form#msg
                     input(placeholder="message", required, type="text")
                     button Send
         script(src="/socket.io/socket.io.js") 
