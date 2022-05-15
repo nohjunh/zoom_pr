@@ -44,7 +44,6 @@ function handleRoomSubmit(event) {
 
 form.addEventListener("submit", handleRoomSubmit);
 
-// bye와 welcome event를 받을때 방의 있는 유저수 Count값을 newCount 변수에 담음
 socket.on("welcome", (user, newCount) => {
   const h3 = room.querySelector("h3");
   h3.innerText = `Room ${roomName} (${newCount})`;
