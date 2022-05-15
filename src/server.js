@@ -1,5 +1,7 @@
 import http from "http";
-import SocketIO from "socket.io";
+import { Server } from "socket.io";
+//admin-UI를 사용하기 위해 instrument import(설치)
+import { instrument } from "@socket.io/admin-ui";
 import express from "express";
 
 const app = express();
@@ -11,7 +13,19 @@ app.get("/", (_, res) => res.render("home"));
 app.get("/*", (_, res) => res.redirect("/"));
 
 const httpServer = http.createServer(app);
-const wsServer = SocketIO(httpServer);
+
+// socket.io를 improt한 server를 wsServer로 만듬
+const wsServer = new Server(httpServer, {
+  // 데모가 작동하는데 필요한 환경설정
+  cors: { // config
+    origin: ["https://admin.socket.io"],   // 기본적으로 origin에 적힌 URL에서 localhost3000에 access함.
+    credentials: true,
+  },
+});
+
+instrument(wsServer, {
+  auth: false,
+});
 
 function publicRooms() {
   const {
@@ -28,9 +42,7 @@ function publicRooms() {
   return publicRooms;
 }
 
-// 방의 갯수를 세는 function
 function countRoom(roomName) {
-  // sockets.adapter.rooms.에서 get하는데 해당 Room의 size 즉, 연결된 클라이언트가 몇명인지를 확인
   return wsServer.sockets.adapter.rooms.get(roomName)?.size;
 }
 
@@ -42,13 +54,10 @@ wsServer.on("connection", (socket) => {
   socket.on("enter_room", (roomName, done) => {
     socket.join(roomName);
     done();
-    // Welcome event를 보낼때 방의 이름의 countRoom의 결과도 같이 보냄.
     socket.to(roomName).emit("welcome", socket.nickname, countRoom(roomName));
     wsServer.sockets.emit("room_change", publicRooms());
   });
   socket.on("disconnecting", () => {
-    // 아직 완전히 퇴장한게 아니므로 인자로 room을 쓸 수 있음.
-    // 퇴장하는 방의 이름의 CountRoom 함수의 결과에 -1 을 해서 bye event로 보냄.
     socket.rooms.forEach((room) =>
       socket.to(room).emit("bye", socket.nickname, countRoom(room) - 1)
     );
@@ -58,7 +67,6 @@ wsServer.on("connection", (socket) => {
   });
   socket.on("new_message", (msg, room, done) => {
     socket.to(room).emit("new_message", `${socket.nickname}: ${msg}`);
-    // done() 콜백함수를 통해 백엔드에서 코드를 시작할 수 있게 해 front에서 해당 함수를 실행함.
     done();
   });
   socket.on("nickname", (nickname) => (socket["nickname"] = nickname));
