@@ -3,51 +3,77 @@ const socket = io();
 const myFace = document.getElementById("myFace");
 const muteBtn = document.getElementById("mute");
 const cameraBtn = document.getElementById("camera");
+// carmerasSelect를 가져와서 많은 option들을 만들 것임.
+const camerasSelect = document.getElementById("cameras");
 
-
-//  stream은 유저로부터 비디오와 오디오가 결합한 것
 let myStream;
-let muted = false; // 처음에는 소리가 나는 상태로 시작할거기에 false로 시작
-let cameraOff = false; //마찬가지로 카메라off도 false로 시작
+let muted = false;
+let cameraOff = false;
 
-// getMedia() API
-async function getMedia() {
+// getCameras()함수는 async function으로 만듬
+// 
+async function getCameras() {
   try {
-    // navigator.mediaDevices.getUserMedia는 유저의 "유저미디어 string"을 줌
-    myStream = await navigator.mediaDevices.getUserMedia({
-      audio: true, // 내가 얻고 싶은 거 => audio
-      video: true, // 내가 얻고 싶은 거 => video
+    // getCameras() 함수는 navigator.mediaDevices.enumerateDevices()를 호출해서 devices 변수에 저장
+    // enumerateDevice() 함수는 백엔드에 연결된 클라이언트의 미디어장치를 포함한 모든 장치를 알려준다.
+    // ex) 컴퓨터에 연결되거나 모바일이 가지고 있는 장치 정보들을 devices에 저장함.
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    // filter함수는 각각의 device들을 filter해줄거고 videoinput이라는 kind를 가진 device만 찾아 cameras변수에 넣어준다.
+    const cameras = devices.filter((device) => device.kind === "videoinput");
+    // cameras들을 forEach로 돌면서 각각의 camera에 option을 만듬.
+    cameras.forEach((camera) => {
+      const option = document.createElement("option");
+      option.value = camera.deviceId;
+      option.innerText = camera.label;
+      // 설정한 option값을 camerasSelect에 넣어줌.
+      camerasSelect.appendChild(option);
+      // 결과는, 우리에게 연결된 모든 video장치별 option값들을 camerasSelect변수에 저장해놓게 됨.
     });
-    // const myFace = document.getElementById("myFace");
-    myFace.srcObject = myStream; // MyFace에 myStream에 저장된 값을 넣는다.
   } catch (e) {
     console.log(e);
   }
 }
 
-getMedia(); //
+async function getMedia() {
+  try {
+    myStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+    myFace.srcObject = myStream;
+    await getCameras(); // getCameras() 호출
+  } catch (e) {
+    console.log(e);
+  }
+}
 
-function handleMuteClick() { // "mute" == 음소거
-  if (!muted) { // 음소거가 되어 있지 않다면,
-    muteBtn.innerText = "Unmute"; // 음소거가 되어 있지 않으니까 버튼의 텍스트는 Unmute로 함.
-                                  // 클릭하면 음소거가 되게 함.
-    muted = true; // 음소거가 아닌 상태에서 버튼을 누르면 음소거가 됨.
-  } else { // 음소거라면
-    muteBtn.innerText = "Mute"; // 음소거가 되어있는 상태라면 버튼의 텍스트는 Mute
+getMedia();
+
+function handleMuteClick() {
+  // Mute버튼 클릭 시 handleMuteClick 함수가 실행되고
+  // stream을 가져올 수 있다.
+  // Mystream.getAudioTracks()을 통해 Audio track을 가져옴
+  // track.enable 값을 지금과 정반대로 만듬. -> track.enabled에 새로운 값 설정하는 과정
+  myStream.getAudioTracks().forEach((track) => (track.enabled = !track.enabled));
+  if (!muted) {
+    muteBtn.innerText = "Unmute";
+    muted = true;
+  } else {
+    muteBtn.innerText = "Mute";
     muted = false;
   }
 }
 function handleCameraClick() {
-  if (cameraOff) { // 카메라가 꺼져있다면, 버튼을 클릭할때 카메라가 켜지게 함.
-    cameraBtn.innerText = "Turn Camera Off"; //버튼텍스트를 Off로 해서 카메라가 꺼져있음을 알려줌.
-    cameraOff = false; // 카메라가 Off고 우리가 on을 하면 cameraOff 값은 false가 되어야 한다.
+  // Audio부분과 동일한 내용.
+  myStream.getVideoTracks().forEach((track) => (track.enabled = !track.enabled));
+  if (cameraOff) {
+    cameraBtn.innerText = "Turn Camera Off";
+    cameraOff = false;
   } else {
     cameraBtn.innerText = "Turn Camera On";
     cameraOff = true;
   }
 }
 
-
-//버튼을 클릭했다는 event인 click event가 발생하면 뒤에 callback 함수 실행
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
