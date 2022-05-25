@@ -3,58 +3,70 @@ const socket = io();
 const myFace = document.getElementById("myFace");
 const muteBtn = document.getElementById("mute");
 const cameraBtn = document.getElementById("camera");
-// carmerasSelect를 가져와서 많은 option들을 만들 것임.
 const camerasSelect = document.getElementById("cameras");
 
 let myStream;
 let muted = false;
 let cameraOff = false;
 
-// getCameras()함수는 async function으로 만듬
-// 
 async function getCameras() {
   try {
-    // getCameras() 함수는 navigator.mediaDevices.enumerateDevices()를 호출해서 devices 변수에 저장
-    // enumerateDevice() 함수는 백엔드에 연결된 클라이언트의 미디어장치를 포함한 모든 장치를 알려준다.
-    // ex) 컴퓨터에 연결되거나 모바일이 가지고 있는 장치 정보들을 devices에 저장함.
     const devices = await navigator.mediaDevices.enumerateDevices();
-    // filter함수는 각각의 device들을 filter해줄거고 videoinput이라는 kind를 가진 device만 찾아 cameras변수에 넣어준다.
     const cameras = devices.filter((device) => device.kind === "videoinput");
-    // cameras들을 forEach로 돌면서 각각의 camera에 option을 만듬.
+    const currentCamera = myStream.getVideoTracks()[0];// videotracks이 첫 번째 track을 가져온다.
     cameras.forEach((camera) => {
       const option = document.createElement("option");
-      option.value = camera.deviceId;
+      option.value = camera.deviceId; // camera는 forEach 인자
       option.innerText = camera.label;
-      // 설정한 option값을 camerasSelect에 넣어줌.
+      // 만약 카메라 option이 현재 선택된 카메라와 같은 label을 가지고 있다면
+      // 이게 현재 사용되고 있는 카메라이다.
+      if (currentCamera.label === camera.label) { // currentCamera의 label이 camera의 label과 같다면
+        option.selected = true; // 그 옵션은 선택된거
+      }
       camerasSelect.appendChild(option);
-      // 결과는, 우리에게 연결된 모든 video장치별 option값들을 camerasSelect변수에 저장해놓게 됨.
     });
   } catch (e) {
     console.log(e);
   }
 }
-
-async function getMedia() {
+// 비디오를 다시 시작하게 하는 함수로 쓰임. -> getMedia를 한번 더 수행하면 됨.
+// getMedia를 할 때 마다 카메라를 가져옴
+async function getMedia(deviceId) { // getMedia가 argument를 하나 받도록 함.
+  const initialConstrains = { // 초기constrains 설정 (deviceID없이 처음에 getMedia를 호출했을 때 실행)
+                              // cameras를 만들기 전에 호출됨.
+    audio: true,
+    video: { facingMode: "user" },
+  };
+  // deviceID가 있을 때 cameraConstraints를 가진다.
+  const cameraConstraints = {
+    audio: true,
+    // deviceID가 있고 exact: deviceId로 하면 브라우저가 이 deviceID만 사용하고 만약 찾지못하면
+    // 비디오가 표시되지 않는다.
+    // 유저로부터 getMedia함수의 인자로 deviceID를 받았기 때문.
+    video: { deviceId: { exact: deviceId } },
+  };
   try {
-    myStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
+    // getUserMedia 함수를 호출할 때 마다 constraints를 보내야 한다.
+    myStream = await navigator.mediaDevices.getUserMedia(
+      // deviceID가 있다면 cameraConstraints를 사용, 없다면 초기 constraints를 사용
+      deviceId ? cameraConstraints : initialConstrains
+    );
     myFace.srcObject = myStream;
-    await getCameras(); // getCameras() 호출
+    if (!deviceId) { // 만약 deviceID가 없다면 카메라값을 가져온다. 이건 처음에
+                    // 실행할 때 딱 한번 실행됨.
+      await getCameras();
+    }
   } catch (e) {
     console.log(e);
   }
 }
 
-getMedia();
+getMedia(); // deviceID없이 getMedia를 호출
 
 function handleMuteClick() {
-  // Mute버튼 클릭 시 handleMuteClick 함수가 실행되고
-  // stream을 가져올 수 있다.
-  // Mystream.getAudioTracks()을 통해 Audio track을 가져옴
-  // track.enable 값을 지금과 정반대로 만듬. -> track.enabled에 새로운 값 설정하는 과정
-  myStream.getAudioTracks().forEach((track) => (track.enabled = !track.enabled));
+  myStream
+    .getAudioTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
   if (!muted) {
     muteBtn.innerText = "Unmute";
     muted = true;
@@ -64,8 +76,9 @@ function handleMuteClick() {
   }
 }
 function handleCameraClick() {
-  // Audio부분과 동일한 내용.
-  myStream.getVideoTracks().forEach((track) => (track.enabled = !track.enabled));
+  myStream
+    .getVideoTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
   if (cameraOff) {
     cameraBtn.innerText = "Turn Camera Off";
     cameraOff = false;
@@ -75,5 +88,14 @@ function handleCameraClick() {
   }
 }
 
+async function handleCameraChange() {
+  // handleCameraChange를 할 때 getMedia function을 불러준다.
+  // getMedia function으로 사용하려는 특정 카메라 Id를 전송한다.
+  await getMedia(camerasSelect.value);
+}
+
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
+//select에서 input이 변경됐는지 확인해야 됨.
+//유저가 select를 변경할 때 getMedia를 다시 해줌.
+camerasSelect.addEventListener("input", handleCameraChange);
