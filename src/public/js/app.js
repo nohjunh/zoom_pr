@@ -1,24 +1,19 @@
-//사용자가 먼저 room에 참가 한다음에 call을 하여 비디오를 띄우는게 목표
-
 const socket = io();
 
 const myFace = document.getElementById("myFace");
 const muteBtn = document.getElementById("mute");
 const cameraBtn = document.getElementById("camera");
 const camerasSelect = document.getElementById("cameras");
-
-
-////////////////////////////////////
-// Call Form 
-
-//처음에 call은 hidden 상태로 만든다. -> 사용자가 room에 참가한 다음에 open할것이기때문.
 const call = document.getElementById("call");
+
 call.hidden = true;
 
 let myStream;
 let muted = false;
 let cameraOff = false;
 let roomName;
+// 1단계: 자신의 peerConnetion을 자신의 브라우저에 만든다.
+let myPeerConnection;
 
 async function getCameras() {
   try {
@@ -94,32 +89,59 @@ muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
 camerasSelect.addEventListener("input", handleCameraChange);
 
-////////////////////////////////////
 // Welcome Form (join a room)
 
 const welcome = document.getElementById("welcome");
-const welcomeForm = welcome.querySelector("form"); // welcome안에 있는 form
+const welcomeForm = welcome.querySelector("form");
 
-function startMedia() {
-  welcome.hidden = true; // 방의 이름을 적는 텍스트와 버튼이 있는 Welcome form을 가리고
-  call.hidden = false; // 비디오를 띄우는 Call form을 보이게 함.
-  getMedia(); // 카메라, 마이크등을 가져옴.
+async function startMedia() {
+  welcome.hidden = true;
+  call.hidden = false;
+  await getMedia();
+  makeConnection();
 }
 
-// submit 버튼 클릭시 콜백함수
 function handleWelcomeSubmit(event) {
   event.preventDefault();
   const input = welcomeForm.querySelector("input");
-  socket.emit("join_room", input.value, startMedia);// 이벤트이름, text박스에 있던 input 내용을 가지고 startMedia 함수를 수행할 것이다.
-                                                    // 백엔드에서 이 emit을 받고 done함수를 수행하면 프론트에서 startMedia 함수 수행
-  roomName = input.value; // 우리가 현재 있는 방의 이름을 알아야하기에 변수에 방이름 저장
+  socket.emit("join_room", input.value, startMedia);
+  roomName = input.value;
   input.value = "";
 }
 
 welcomeForm.addEventListener("submit", handleWelcomeSubmit);
 
 // Socket Code
-// 누군가 방에 들어오면 해당 문자열 출력
-socket.on("welcome", () => {
-  console.log("someone joined");
+// 다른 브라우저(B브라우저)가 접속하면 welcome event를 발생시킬것이고
+// socket.on("welcom") 코드는 기존의 브라우저(A브라우저)들이 실행하게 된다.
+socket.on("welcome", async () => {
+  const offer = await myPeerConnection.createOffer(); // offer를 만든다.(자신의 브라우저가 어디에 있고 어떤 속성인지를 설명하는 offer값)
+  myPeerConnection.setLocalDescription(offer); // mypeerConntion에 해당 offer값을 셋팅
+  console.log("sent the offer");
+  socket.emit("offer", offer, roomName); // roomName에 offer값을 인자로 보내는 용도의 event 발생 -> 서버가 이 emit event를 받는다.
 });
+
+// welcome event를 발생시킨 브라우저(B브라우저)가 기존의 브라우저(A브라우저)의 offer값을 해당 event를 통해 받는다.
+socket.on("offer", (offer) => {
+  // offer 값을 서버를 통해 주고 받고
+  // 이 offer 값을 통해 이제 브라우저끼리 직접적으로 대화할 수 있게 된다.
+  console.log(offer); // B브라우저에서 A브라우저의 offer값의 내용을 출력하는 것.
+});
+
+// RTC Code -> 실제로 연결을 만드는 함수들은 다음과 같다.
+
+// 만약 A 브라우저가 "room" 에 먼저 들어가 있고
+// B브라우저가 "room" 에 참가하면 B브라우저가 참가했다는 알림을 A브라우저가 받는다.
+// 따라서, A브라우저가 offer를 만드는 행위를 시작하는 주체임.
+
+//이 연결을 모든 곳에 공유한다-> 즉 자신의 stream을 공유한다. -> 누구나 stream에 접촉가능
+function makeConnection() {
+  myPeerConnection = new RTCPeerConnection(); // RTCPeerConnection을 만들고,
+  // 방에 참가하면 오디오와 비디오 track이 만들어질것이며
+  // 이 트랙들을 자신의 myPeerConnection stream에 추가한다.
+  myStream
+    .getTracks()
+    .forEach((track) => myPeerConnection.addTrack(track, myStream));
+    // 아직까지 이 함수를 통해서는  브라우저끼리 연결이 되지않은 상태
+    // 각 자신들의 브라우저들을 구성만 함.
+}
