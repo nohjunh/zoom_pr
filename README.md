@@ -2,7 +2,7 @@
 Noom
 Zoom Clone using NodeJS, WebRTC and Websockets.
 
-"Notion" -> summarize the key concepts.
+Notion Link -> summarize the key concepts.
 
 chap1 -> https://www.notion.so/Chap1-d55d1af6df674e539020fd83e6a3ad5f
 
