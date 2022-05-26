@@ -1,18 +1,24 @@
-
-import http from "http";
-import SocketIO from "socket.io";
-import express from "express";
-
-const app = express();
-
-app.set("view engine", "pug");
-app.set("views", __dirname + "/views");
-app.use("/public", express.static(__dirname + "/public"));
-app.get("/", (_, res) => res.render("home"));
-app.get("/*", (_, res) => res.redirect("/"));
-
-const httpServer = http.createServer(app);
-const wsServer = SocketIO(httpServer);
-
-const handleListen = () => console.log(`Listening on http://localhost:3000`);
-httpServer.listen(3000, handleListen);
+doctype html
+html(lang="en")
+    head
+        meta(charset="UTF-8")
+        meta(http-equiv="X-UA-Compatible", content="IE=edge")
+        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        title Noom
+        link(rel="stylesheet", href="https://unpkg.com/mvp.css")
+    body
+        header
+            h1 Noom
+        main
+            div#welcome
+                form    
+                    input(placeholder="room name", required, type="text")
+                    button Enter room
+            div#call
+                div#myStream
+                    video#myFace(autoplay,playsinline, width="400", height="400")
+                    button#mute Mute
+                    button#camera Turn Camera Off
+                    select#cameras
+        script(src="/socket.io/socket.io.js") 
+        script(src="/public/js/app.js") 

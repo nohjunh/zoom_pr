@@ -1,3 +1,5 @@
+//사용자가 먼저 room에 참가 한다음에 call을 하여 비디오를 띄우는게 목표
+
 const socket = io();
 
 const myFace = document.getElementById("myFace");
@@ -5,23 +7,30 @@ const muteBtn = document.getElementById("mute");
 const cameraBtn = document.getElementById("camera");
 const camerasSelect = document.getElementById("cameras");
 
+
+////////////////////////////////////
+// Call Form 
+
+//처음에 call은 hidden 상태로 만든다. -> 사용자가 room에 참가한 다음에 open할것이기때문.
+const call = document.getElementById("call");
+call.hidden = true;
+
 let myStream;
 let muted = false;
 let cameraOff = false;
+let roomName;
 
 async function getCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cameras = devices.filter((device) => device.kind === "videoinput");
-    const currentCamera = myStream.getVideoTracks()[0];// videotracks이 첫 번째 track을 가져온다.
+    const currentCamera = myStream.getVideoTracks()[0];
     cameras.forEach((camera) => {
       const option = document.createElement("option");
-      option.value = camera.deviceId; // camera는 forEach 인자
+      option.value = camera.deviceId;
       option.innerText = camera.label;
-      // 만약 카메라 option이 현재 선택된 카메라와 같은 label을 가지고 있다면
-      // 이게 현재 사용되고 있는 카메라이다.
-      if (currentCamera.label === camera.label) { // currentCamera의 label이 camera의 label과 같다면
-        option.selected = true; // 그 옵션은 선택된거
+      if (currentCamera.label === camera.label) {
+        option.selected = true;
       }
       camerasSelect.appendChild(option);
     });
@@ -29,39 +38,28 @@ async function getCameras() {
     console.log(e);
   }
 }
-// 비디오를 다시 시작하게 하는 함수로 쓰임. -> getMedia를 한번 더 수행하면 됨.
-// getMedia를 할 때 마다 카메라를 가져옴
-async function getMedia(deviceId) { // getMedia가 argument를 하나 받도록 함.
-  const initialConstrains = { // 초기constrains 설정 (deviceID없이 처음에 getMedia를 호출했을 때 실행)
-                              // cameras를 만들기 전에 호출됨.
+
+async function getMedia(deviceId) {
+  const initialConstrains = {
     audio: true,
     video: { facingMode: "user" },
   };
-  // deviceID가 있을 때 cameraConstraints를 가진다.
   const cameraConstraints = {
     audio: true,
-    // deviceID가 있고 exact: deviceId로 하면 브라우저가 이 deviceID만 사용하고 만약 찾지못하면
-    // 비디오가 표시되지 않는다.
-    // 유저로부터 getMedia함수의 인자로 deviceID를 받았기 때문.
     video: { deviceId: { exact: deviceId } },
   };
   try {
-    // getUserMedia 함수를 호출할 때 마다 constraints를 보내야 한다.
     myStream = await navigator.mediaDevices.getUserMedia(
-      // deviceID가 있다면 cameraConstraints를 사용, 없다면 초기 constraints를 사용
       deviceId ? cameraConstraints : initialConstrains
     );
     myFace.srcObject = myStream;
-    if (!deviceId) { // 만약 deviceID가 없다면 카메라값을 가져온다. 이건 처음에
-                    // 실행할 때 딱 한번 실행됨.
+    if (!deviceId) {
       await getCameras();
     }
   } catch (e) {
     console.log(e);
   }
 }
-
-getMedia(); // deviceID없이 getMedia를 호출
 
 function handleMuteClick() {
   myStream
@@ -89,13 +87,39 @@ function handleCameraClick() {
 }
 
 async function handleCameraChange() {
-  // handleCameraChange를 할 때 getMedia function을 불러준다.
-  // getMedia function으로 사용하려는 특정 카메라 Id를 전송한다.
   await getMedia(camerasSelect.value);
 }
 
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
-//select에서 input이 변경됐는지 확인해야 됨.
-//유저가 select를 변경할 때 getMedia를 다시 해줌.
 camerasSelect.addEventListener("input", handleCameraChange);
+
+////////////////////////////////////
+// Welcome Form (join a room)
+
+const welcome = document.getElementById("welcome");
+const welcomeForm = welcome.querySelector("form"); // welcome안에 있는 form
+
+function startMedia() {
+  welcome.hidden = true; // 방의 이름을 적는 텍스트와 버튼이 있는 Welcome form을 가리고
+  call.hidden = false; // 비디오를 띄우는 Call form을 보이게 함.
+  getMedia(); // 카메라, 마이크등을 가져옴.
+}
+
+// submit 버튼 클릭시 콜백함수
+function handleWelcomeSubmit(event) {
+  event.preventDefault();
+  const input = welcomeForm.querySelector("input");
+  socket.emit("join_room", input.value, startMedia);// 이벤트이름, text박스에 있던 input 내용을 가지고 startMedia 함수를 수행할 것이다.
+                                                    // 백엔드에서 이 emit을 받고 done함수를 수행하면 프론트에서 startMedia 함수 수행
+  roomName = input.value; // 우리가 현재 있는 방의 이름을 알아야하기에 변수에 방이름 저장
+  input.value = "";
+}
+
+welcomeForm.addEventListener("submit", handleWelcomeSubmit);
+
+// Socket Code
+// 누군가 방에 들어오면 해당 문자열 출력
+socket.on("welcome", () => {
+  console.log("someone joined");
+});
