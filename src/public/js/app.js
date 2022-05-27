@@ -13,6 +13,7 @@ let muted = false;
 let cameraOff = false;
 let roomName;
 let myPeerConnection;
+let myDataChannel; // 여기에 Data Channel을 만든다.
 
 async function getCameras() {
   try {
@@ -120,14 +121,33 @@ welcomeForm.addEventListener("submit", handleWelcomeSubmit);
 
 // Socket Code
 
+// offer를 만드는 쪽
+// offer를 만드는 peer가 data channel을 만드는 주체 
 socket.on("welcome", async () => {
+  // A브라우저가 offer, candidate, answer를 받은 후에 Data Channel을 만듬.
+  myDataChannel = myPeerConnection.createDataChannel("chat"); // DataChannel을 만드는데 채널 이름을 chat으로 설정하고,
+                                                             // DataChannel에 Event Listener를 추가한다.
+  // peer A 즉, A브라우저에서의 DataChannel 이다. -> 다른 peer는 data channel을 만들 필요 X
+  // 다른 채널은 event listener만 만들면 된다. 
+  myDataChannel.addEventListener("message", (event) => console.log(event.data));
+  console.log("made data channel");
   const offer = await myPeerConnection.createOffer();
   myPeerConnection.setLocalDescription(offer);
   console.log("sent the offer");
   socket.emit("offer", offer, roomName);
 });
 
+// offer를 받는 쪽은 DataChannel event를 받으면 된다
+// offer를 받는 peer는 새로운 Data Channel이 있을 때 eventListener를 추가함.
 socket.on("offer", async (offer) => {
+  // B브라우저가 새로운 DataChannel가 있을 때(A브라우저에서 dataChannel을 만들면) -> 
+  // 알림을 받고 -> event랑 channel을 함께 받는다. -> 그리고 그 DataChannel에 대한 eventListener를 추가한다.
+  myPeerConnection.addEventListener("datachannel", (event) => { // myPeerConnection에서 datachannel에 대한 event listener를 추가한다.
+    myDataChannel = event.channel; // 인자로 들어온 event라는 이름의 채널data를 B브라우저의 DataChannel로 넣는다.
+    myDataChannel.addEventListener("message", (event) => 
+      console.log(event.data) //
+    );
+  });
   console.log("received the offer");
   myPeerConnection.setRemoteDescription(offer);
   const answer = await myPeerConnection.createAnswer();
@@ -150,7 +170,7 @@ socket.on("ice", (ice) => {
 
 function makeConnection() {
   myPeerConnection = new RTCPeerConnection({
-    iceServers: [ // 구글이 무료로 제공하는 STUN 서버를 이용한다.
+    iceServers: [
       {
         urls: [
           "stun:stun.l.google.com:19302",
