@@ -80,8 +80,27 @@ function handleCameraClick() {
   }
 }
 
+// 카메라 device를 바꿀 때 stream을 통째로 바꾸도록 구현을 해놨는데 ,
+// user한테 보내는 track은 바뀌지 않으므로 내 브라우저에서 카메라 device를 바꿔도
+// 상대방 브라우저에서는 내 카메라화면이 바뀌지 않는다.
+// 이 문제를 해결하기 위해 다음 함수를 수행한다.
 async function handleCameraChange() {
-  await getMedia(camerasSelect.value);
+  await getMedia(camerasSelect.value); // 다음 함수의 수행결과로,
+                                       // 변경하고자 선택한 camera정보로
+                                       // video device의 새로운 id로 stream을 다시 생성함.
+  if (myPeerConnection) { // myPeerConnction이 존재하면, 
+    const videoTrack = myStream.getVideoTracks()[0]; // video track 들 중 첫번째 장치 정보를 받는다.
+
+    // track에 kind: "video"를 가진 sender를 찾는다.
+    // sender는 우리의 peer로 보내진 media stream track을 컨트롤할 수 있게 해준다.
+    // 즉, sender는 다른 브라우저로 보내진 비디오, 오디오 data를 컨트롤할 수 있는 방법을 제공.
+    const videoSender = myPeerConnection
+      .getSenders()
+      .find((sender) => sender.track.kind === "video");
+    
+    //track을 변경하는데, 
+    videoSender.replaceTrack(videoTrack);
+  }
 }
 
 muteBtn.addEventListener("click", handleMuteClick);
@@ -134,44 +153,29 @@ socket.on("answer", (answer) => {
   myPeerConnection.setRemoteDescription(answer);
 });
 
-// B브라우저가 서버로 부터 A브라우저가 보낸 icecandidate를 받는다.
 socket.on("ice", (ice) => {
   console.log("received candidate");
-  // A브라우저가 보낸 icecandidate를 myPeerConnection에 추가함.
   myPeerConnection.addIceCandidate(ice);
-  // 이후에 B브라우저는 자신이 icecandidate event를 실행할거고 이걸 A브라우저에게 보낼 것이다.
-  // 그러면, A브라우저도 icecandidate를 추가하게 되고 그후에 icecandidate 셋팅과정이 끝난다.
 });
 
 // RTC Code
 
 function makeConnection() {
   myPeerConnection = new RTCPeerConnection();
-  // myPeerConection을 만들면, 그 즉시 icecandidate event를 listen한다.
   myPeerConnection.addEventListener("icecandidate", handleIce);
-  // addstream event 등록
   myPeerConnection.addEventListener("addstream", handleAddStream);
+  // peer 연결을 만드는 동시에 그 연결에 track을 추가
   myStream
     .getTracks()
     .forEach((track) => myPeerConnection.addTrack(track, myStream));
 }
 
-// icecandidate event callback
 function handleIce(data) {
   console.log("sent candidate");
-  // candidate들(서로 소통할 방법들의 후보들)을 다시 다른 브라우저로 보낸다.
-  // 즉, A브라우저의 모든 icecandidate들을 B브라우저로 보낸다.!
   socket.emit("ice", data.candidate, roomName);
 }
 
-// 자신의 peer로부터 event를 받아 실행되는 adddstrem event callback
-function handleAddStream(data) { // 인자로 들어오는 data는 상대방의 peer stream 정보
-                                // A브라우저라면, B브라우저의 peer stream이 인자에 담길 것이고
-                                // B브라우저라면, A브라우저의 peer stream이 인자에 담긴다.
-
-  // home.pug에 peerFace div값을 가져와서, 상대방 peer stream정보를 넣는다.
-  // peerFace 태그는 myFace 태그와 마찬가지로 video 정보를 구성함. 
-  // 그러면 자신의 브라우저 화면에 상대방의 video 화면도 같이 띄울 수 있게 된다.
+function handleAddStream(data) {
   const peerFace = document.getElementById("peerFace");
-  peerFace.srcObject = data.stream; // peerFace의 비디오 셋팅
+  peerFace.srcObject = data.stream;
 }
