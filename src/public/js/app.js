@@ -103,8 +103,8 @@ async function initCall() {
 async function handleWelcomeSubmit(event) {
   event.preventDefault();
   const input = welcomeForm.querySelector("input");
-  await initCall(); // 자신 media 정보를 가져가서 연결을 만들어주는 함수
-  socket.emit("join_room", input.value); // A브라우저에게 자신이 들어왔다는 걸 알림
+  await initCall();
+  socket.emit("join_room", input.value);
   roomName = input.value;
   input.value = "";
 }
@@ -112,43 +112,66 @@ async function handleWelcomeSubmit(event) {
 welcomeForm.addEventListener("submit", handleWelcomeSubmit);
 
 // Socket Code
-// welcome event 처리부분은 A브라우저가 처리하는 부분
-// "B브라우저에게서 발생한 방금 들어왔다는 event"를 A브라우저가 받음
-// A브라우저에서 offer를 만들었을 때, 자신의 localDescription을 셋팅함. 
+
 socket.on("welcome", async () => {
-  const offer = await myPeerConnection.createOffer(); // A브라우저가 offer를 만들고, 
+  const offer = await myPeerConnection.createOffer();
   myPeerConnection.setLocalDescription(offer);
   console.log("sent the offer");
-  // A브라우저가 B브라우저에게 offer를 전송
   socket.emit("offer", offer, roomName);
 });
 
-// offer event 처리부분은 B브라우저가 처리하는 부분
-// A브라우저는 offer를 생성하고, B브라우저는 answer를 생성하게 된다.
-// B브라우저가 그 offer를 받아서, (즉, B브라우저가 A브라우저의 description을 받아서)
 socket.on("offer", async (offer) => {
-  myPeerConnection.setRemoteDescription(offer); // B브라우저가 remoteDescription을 설정
-  // 여기서 B브라우저가 answer를 생성하게 됨.
-  const answer = await myPeerConnection.createAnswer(); // B브라우저가 answer를 생성하고
-  myPeerConnection.setLocalDescription(answer); // 자신의 localDescription으로 answer를 셋팅함.
-  // B브라우저가 A브라우저로 보낼 answer가 있을 때,
-  // A브라우저가 이 answer에 대해 응답해야되므로 B브라우저에서 answer event를 발생시킴.
-  socket.emit("answer", answer, roomName); // room이름도 같이 보냄. => 룸에 있는 모든 사람에게 answer 정보를 알릴 것이기 때문 
+  console.log("received the offer");
+  myPeerConnection.setRemoteDescription(offer);
+  const answer = await myPeerConnection.createAnswer();
+  myPeerConnection.setLocalDescription(answer);
+  socket.emit("answer", answer, roomName);
+  console.log("sent the answer");
 });
 
-// 서버로부터 answer event를 받으면,
-// 즉, B브라우저의 answer description이 서버를 통해 룸에 있는 모두에게 전달되고
-// 룸에 있는 각 브라우저가 해당 answer description을 remoteDescription으로 설정한다.
 socket.on("answer", (answer) => {
+  console.log("received the answer");
   myPeerConnection.setRemoteDescription(answer);
+});
+
+// B브라우저가 서버로 부터 A브라우저가 보낸 icecandidate를 받는다.
+socket.on("ice", (ice) => {
+  console.log("received candidate");
+  // A브라우저가 보낸 icecandidate를 myPeerConnection에 추가함.
+  myPeerConnection.addIceCandidate(ice);
+  // 이후에 B브라우저는 자신이 icecandidate event를 실행할거고 이걸 A브라우저에게 보낼 것이다.
+  // 그러면, A브라우저도 icecandidate를 추가하게 되고 그후에 icecandidate 셋팅과정이 끝난다.
 });
 
 // RTC Code
 
-// track들을 개별적으로 추가해주는 함수
 function makeConnection() {
   myPeerConnection = new RTCPeerConnection();
+  // myPeerConection을 만들면, 그 즉시 icecandidate event를 listen한다.
+  myPeerConnection.addEventListener("icecandidate", handleIce);
+  // addstream event 등록
+  myPeerConnection.addEventListener("addstream", handleAddStream);
   myStream
     .getTracks()
     .forEach((track) => myPeerConnection.addTrack(track, myStream));
+}
+
+// icecandidate event callback
+function handleIce(data) {
+  console.log("sent candidate");
+  // candidate들(서로 소통할 방법들의 후보들)을 다시 다른 브라우저로 보낸다.
+  // 즉, A브라우저의 모든 icecandidate들을 B브라우저로 보낸다.
+  socket.emit("ice", data.candidate, roomName);
+}
+
+// 자신의 peer로부터 event를 받아 실행되는 adddstrem event callback
+function handleAddStream(data) { // 인자로 들어오는 data는 상대방의 peer stream 정보
+                                // A브라우저라면, B브라우저의 peer stream이 인자에 담길 것이고
+                                // B브라우저라면, A브라우저의 peer stream이 인자에 담긴다.
+
+  // home.pug에 peerFace div값을 가져와서, 상대방 peer stream정보를 넣는다.
+  // peerFace 태그는 myFace 태그와 마찬가지로 video 정보를 구성함. 
+  // 그러면 자신의 브라우저 화면에 상대방의 video 화면도 같이 띄울 수 있게 된다.
+  const peerFace = document.getElementById("peerFace");
+  peerFace.srcObject = data.stream; // peerFace의 비디오 셋팅
 }
