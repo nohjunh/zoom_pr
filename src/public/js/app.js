@@ -12,7 +12,6 @@ let myStream;
 let muted = false;
 let cameraOff = false;
 let roomName;
-// 1단계: 자신의 peerConnetion을 자신의 브라우저에 만든다.
 let myPeerConnection;
 
 async function getCameras() {
@@ -94,17 +93,18 @@ camerasSelect.addEventListener("input", handleCameraChange);
 const welcome = document.getElementById("welcome");
 const welcomeForm = welcome.querySelector("form");
 
-async function startMedia() {
+async function initCall() {
   welcome.hidden = true;
   call.hidden = false;
   await getMedia();
   makeConnection();
 }
 
-function handleWelcomeSubmit(event) {
+async function handleWelcomeSubmit(event) {
   event.preventDefault();
   const input = welcomeForm.querySelector("input");
-  socket.emit("join_room", input.value, startMedia);
+  await initCall(); // 자신 media 정보를 가져가서 연결을 만들어주는 함수
+  socket.emit("join_room", input.value); // A브라우저에게 자신이 들어왔다는 걸 알림
   roomName = input.value;
   input.value = "";
 }
@@ -112,36 +112,43 @@ function handleWelcomeSubmit(event) {
 welcomeForm.addEventListener("submit", handleWelcomeSubmit);
 
 // Socket Code
-// 다른 브라우저(B브라우저)가 접속하면 welcome event를 발생시킬것이고
-// socket.on("welcom") 코드는 기존의 브라우저(A브라우저)들이 실행하게 된다.
+// welcome event 처리부분은 A브라우저가 처리하는 부분
+// "B브라우저에게서 발생한 방금 들어왔다는 event"를 A브라우저가 받음
+// A브라우저에서 offer를 만들었을 때, 자신의 localDescription을 셋팅함. 
 socket.on("welcome", async () => {
-  const offer = await myPeerConnection.createOffer(); // offer를 만든다.(자신의 브라우저가 어디에 있고 어떤 속성인지를 설명하는 offer값)
-  myPeerConnection.setLocalDescription(offer); // mypeerConntion에 해당 offer값을 셋팅
+  const offer = await myPeerConnection.createOffer(); // A브라우저가 offer를 만들고, 
+  myPeerConnection.setLocalDescription(offer);
   console.log("sent the offer");
-  socket.emit("offer", offer, roomName); // roomName에 offer값을 인자로 보내는 용도의 event 발생 -> 서버가 이 emit event를 받는다.
+  // A브라우저가 B브라우저에게 offer를 전송
+  socket.emit("offer", offer, roomName);
 });
 
-// welcome event를 발생시킨 브라우저(B브라우저)가 기존의 브라우저(A브라우저)의 offer값을 해당 event를 통해 받는다.
-socket.on("offer", (offer) => {
-  // offer 값을 서버를 통해 주고 받고
-  // 이 offer 값을 통해 이제 브라우저끼리 직접적으로 대화할 수 있게 된다.
-  console.log(offer); // B브라우저에서 A브라우저의 offer값의 내용을 출력하는 것.
+// offer event 처리부분은 B브라우저가 처리하는 부분
+// A브라우저는 offer를 생성하고, B브라우저는 answer를 생성하게 된다.
+// B브라우저가 그 offer를 받아서, (즉, B브라우저가 A브라우저의 description을 받아서)
+socket.on("offer", async (offer) => {
+  myPeerConnection.setRemoteDescription(offer); // B브라우저가 remoteDescription을 설정
+  // 여기서 B브라우저가 answer를 생성하게 됨.
+  const answer = await myPeerConnection.createAnswer(); // B브라우저가 answer를 생성하고
+  myPeerConnection.setLocalDescription(answer); // 자신의 localDescription으로 answer를 셋팅함.
+  // B브라우저가 A브라우저로 보낼 answer가 있을 때,
+  // A브라우저가 이 answer에 대해 응답해야되므로 B브라우저에서 answer event를 발생시킴.
+  socket.emit("answer", answer, roomName); // room이름도 같이 보냄. => 룸에 있는 모든 사람에게 answer 정보를 알릴 것이기 때문 
 });
 
-// RTC Code -> 실제로 연결을 만드는 함수들은 다음과 같다.
+// 서버로부터 answer event를 받으면,
+// 즉, B브라우저의 answer description이 서버를 통해 룸에 있는 모두에게 전달되고
+// 룸에 있는 각 브라우저가 해당 answer description을 remoteDescription으로 설정한다.
+socket.on("answer", (answer) => {
+  myPeerConnection.setRemoteDescription(answer);
+});
 
-// 만약 A 브라우저가 "room" 에 먼저 들어가 있고
-// B브라우저가 "room" 에 참가하면 B브라우저가 참가했다는 알림을 A브라우저가 받는다.
-// 따라서, A브라우저가 offer를 만드는 행위를 시작하는 주체임.
+// RTC Code
 
-//이 연결을 모든 곳에 공유한다-> 즉 자신의 stream을 공유한다. -> 누구나 stream에 접촉가능
+// track들을 개별적으로 추가해주는 함수
 function makeConnection() {
-  myPeerConnection = new RTCPeerConnection(); // RTCPeerConnection을 만들고,
-  // 방에 참가하면 오디오와 비디오 track이 만들어질것이며
-  // 이 트랙들을 자신의 myPeerConnection stream에 추가한다.
+  myPeerConnection = new RTCPeerConnection();
   myStream
     .getTracks()
     .forEach((track) => myPeerConnection.addTrack(track, myStream));
-    // 아직까지 이 함수를 통해서는  브라우저끼리 연결이 되지않은 상태
-    // 각 자신들의 브라우저들을 구성만 함.
 }
