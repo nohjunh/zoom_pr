@@ -160,7 +160,7 @@ function makeConnection() {
 function handleIce(data) {
   console.log("sent candidate");
   // candidate들(서로 소통할 방법들의 후보들)을 다시 다른 브라우저로 보낸다.
-  // 즉, A브라우저의 모든 icecandidate들을 B브라우저로 보낸다.
+  // 즉, A브라우저의 모든 icecandidate들을 B브라우저로 보낸다.!
   socket.emit("ice", data.candidate, roomName);
 }
 

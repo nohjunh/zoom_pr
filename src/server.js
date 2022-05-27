@@ -26,7 +26,7 @@ wsServer.on("connection", (socket) => {
   });
   // socketIO 서버를 통해 ice event를 통해
   // 인자로 받은 roomName에 있는 모든 클라이언트 브라우저들에게 
-  // icecandidate data를 전달할 것이다.
+  // icecandidate data를 전달할 것이다.!
   socket.on("ice", (ice, roomName) => {
     socket.to(roomName).emit("ice", ice);
   });
